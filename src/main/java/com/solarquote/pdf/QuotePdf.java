@@ -49,6 +49,8 @@ public final class QuotePdf {
     private static final Font SMALL = new Font(Font.HELVETICA, 8, Font.NORMAL, MUTED);
     private static final Font BIG_W = new Font(Font.HELVETICA, 11, Font.BOLD, Color.WHITE);
 
+    private static final float LOGO_SIZE = 72;
+
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd MMM yyyy");
 
     private QuotePdf() {}
@@ -112,25 +114,48 @@ public final class QuotePdf {
         PdfPTable t = new PdfPTable(new float[]{60, 40});
         t.setWidthPercentage(100);
 
-        // Left: logo + company details
-        PdfPCell left = cell(Rectangle.NO_BORDER);
+        // Left: logo with the company details beside it
+        float leftWidth = (PageSize.A4.getWidth() - 72) * 0.60f;
+        Image img = null;
         String logo = Settings.get("company.logo");
         if (!logo.isBlank() && new File(logo).isFile()) {
             try {
-                Image img = Image.getInstance(logo);
-                img.scaleToFit(120, 50);
-                left.addElement(img);
+                img = Image.getInstance(logo);
+                img.scaleToFit(LOGO_SIZE, LOGO_SIZE);
             } catch (Exception ignored) {
                 // A broken logo must never stop the quotation from being generated
             }
         }
-        left.addElement(new Paragraph(Settings.get("company.name"), TITLE));
+        float logoCol = img == null ? 0 : LOGO_SIZE + 10;
+
+        PdfPCell details = cell(Rectangle.NO_BORDER);
+        details.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        details.setPaddingRight(12);
+        String name = Settings.get("company.name");
+        details.addElement(new Paragraph(name, titleFontFitting(name, leftWidth - logoCol - 16)));
         StringBuilder info = new StringBuilder(Settings.get("company.address"));
         appendLine(info, "Phone: ", Settings.get("company.phone"));
         appendLine(info, "Email: ", Settings.get("company.email"));
         appendLine(info, "", Settings.get("company.website"));
         appendLine(info, "GSTIN: ", Settings.get("company.gstin"));
-        left.addElement(new Paragraph(info.toString(), SMALL));
+        Paragraph infoP = new Paragraph(info.toString(), SMALL);
+        infoP.setLeading(11);
+        details.addElement(infoP);
+
+        PdfPCell left = cell(Rectangle.NO_BORDER);
+        PdfPTable brand = img == null
+                ? new PdfPTable(1)
+                : new PdfPTable(new float[]{logoCol, leftWidth - logoCol});
+        brand.setWidthPercentage(100);
+        if (img != null) {
+            PdfPCell logoCell = new PdfPCell(img, false);
+            logoCell.setBorder(Rectangle.NO_BORDER);
+            logoCell.setPadding(0);
+            logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            brand.addCell(logoCell);
+        }
+        brand.addCell(details);
+        left.addElement(brand);
         t.addCell(left);
 
         // Right: quotation meta box
@@ -283,7 +308,7 @@ public final class QuotePdf {
     private static PdfPTable bankAndSignature() {
         PdfPTable t = new PdfPTable(new float[]{55, 45});
         t.setWidthPercentage(100);
-        t.setSpacingBefore(14);
+        t.setSpacingBefore(10);
         t.setKeepTogether(true);
 
         PdfPCell bank = cell(Rectangle.NO_BORDER);
@@ -303,7 +328,7 @@ public final class QuotePdf {
         forCo.setAlignment(Element.ALIGN_RIGHT);
         sign.addElement(forCo);
         Paragraph space = new Paragraph(" ");
-        space.setSpacingBefore(28);
+        space.setSpacingBefore(22);
         sign.addElement(space);
         Paragraph auth = new Paragraph("Authorised Signatory", BODY);
         auth.setAlignment(Element.ALIGN_RIGHT);
@@ -326,6 +351,13 @@ public final class QuotePdf {
             ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_RIGHT,
                     new Phrase("Page " + writer.getPageNumber(), SMALL), document.right(), y, 0);
         }
+    }
+
+    /** Title font shrunk (down to 11pt) so the company name stays on one line beside the logo. */
+    private static Font titleFontFitting(String text, float width) {
+        float perPoint = TITLE.getCalculatedBaseFont(false).getWidthPoint(text, 1);
+        float size = perPoint <= 0 ? TITLE.getSize() : Math.min(TITLE.getSize(), width / perPoint);
+        return new Font(Font.HELVETICA, Math.max(11, size), Font.BOLD, NAVY);
     }
 
     private static PdfPTable wrapWithRule(PdfPTable content) {
@@ -370,7 +402,7 @@ public final class QuotePdf {
 
     private static Paragraph section(String title) {
         Paragraph p = new Paragraph(title, H_NAVY);
-        p.setSpacingBefore(12);
+        p.setSpacingBefore(10);
         p.setSpacingAfter(4);
         return p;
     }
