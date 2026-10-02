@@ -113,7 +113,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
         JScrollPane sp = new JScrollPane(terms);
         sp.setPreferredSize(new Dimension(500, 200));
         JTextField prefix = field("quote.prefix");
-        prefix.setToolTipText("Quote numbers look like PREFIX/2026-27/0001");
+        prefix.setToolTipText("Quote numbers look like PREFIX0001");
         return new Ui.Form()
                 .add("Quote number prefix", prefix)
                 .add("Validity (days)", field("quote.validity_days"))

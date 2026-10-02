@@ -90,7 +90,7 @@ public final class QuotePdf {
                 t.setLeading(12);
                 doc.add(t);
             }
-            doc.add(bankAndSignature());
+            addAtPageBottom(doc, writer, bankAndSignature());
             doc.close();   // flushes the PDF and closes the stream
         } catch (DocumentException e) {
             throw new IOException("Could not create PDF: " + e.getMessage(), e);
@@ -197,9 +197,6 @@ public final class QuotePdf {
         sys.addElement(new Paragraph("PROPOSED SYSTEM", SMALL));
         sys.addElement(new Paragraph(q.capacityKw.stripTrailingZeros().toPlainString() + " kW "
                 + Quotation.systemLabel(q.systemType) + " Solar PV System", H_NAVY));
-        BigDecimal units = q.capacityKw.multiply(new BigDecimal("4")).multiply(new BigDecimal("30"));
-        sys.addElement(new Paragraph("Est. generation: ~" + units.setScale(0, java.math.RoundingMode.HALF_UP)
-                + " units/month (4 units/kW/day)", SMALL));
         t.addCell(sys);
         return t;
     }
@@ -307,9 +304,6 @@ public final class QuotePdf {
 
     private static PdfPTable bankAndSignature() {
         PdfPTable t = new PdfPTable(new float[]{55, 45});
-        t.setWidthPercentage(100);
-        t.setSpacingBefore(10);
-        t.setKeepTogether(true);
 
         PdfPCell bank = cell(Rectangle.NO_BORDER);
         if (!Settings.get("bank.account_no").isBlank()) {
@@ -341,16 +335,29 @@ public final class QuotePdf {
     // Helpers
     // ------------------------------------------------------------------
 
-    /** Page footer: thank-you line and page number. */
+    /** Page footer: page number. */
     private static class Footer extends PdfPageEventHelper {
         @Override
         public void onEndPage(PdfWriter writer, Document document) {
             float y = document.bottom() - 20;
-            ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_LEFT,
-                    new Phrase("Thank you for choosing solar energy!", SMALL), document.left(), y, 0);
-            ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_RIGHT,
-                    new Phrase("Page " + writer.getPageNumber(), SMALL), document.right(), y, 0);
+            float x = (document.left() + document.right()) / 2;
+            ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_CENTER,
+                    new Phrase("Page " + writer.getPageNumber(), SMALL), x, y, 0);
         }
+    }
+
+    /**
+     * Draws the table pinned to the bottom margin of the current page, or of a
+     * new page when the content above leaves too little room for it.
+     */
+    private static void addAtPageBottom(Document doc, PdfWriter writer, PdfPTable t) {
+        t.setTotalWidth(doc.right() - doc.left());
+        t.setLockedWidth(true);
+        float height = t.getTotalHeight();
+        if (writer.getVerticalPosition(true) - 10 < doc.bottom() + height) {
+            doc.newPage();
+        }
+        t.writeSelectedRows(0, -1, doc.left(), doc.bottom() + height, writer.getDirectContent());
     }
 
     /** Title font shrunk (down to 11pt) so the company name stays on one line beside the logo. */

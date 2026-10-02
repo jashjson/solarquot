@@ -34,7 +34,7 @@ public final class QuotationDao {
             con.setAutoCommit(false);
             try {
                 if (isNew) {
-                    q.quoteNo = nextQuoteNo(con, q.quoteDate);
+                    q.quoteNo = nextQuoteNo(con);
                     insertHeader(con, q);
                 } else {
                     updateHeader(con, q);
@@ -189,20 +189,17 @@ public final class QuotationDao {
     // Internals
     // ------------------------------------------------------------------
 
-    /** Indian financial year, April–March: 2026-09-24 → "2026-27". */
-    static String financialYear(LocalDate d) {
-        int start = d.getMonthValue() >= 4 ? d.getYear() : d.getYear() - 1;
-        return start + "-" + String.format("%02d", (start + 1) % 100);
-    }
+    /** Single running counter row; older databases also hold per-FY rows like "2026-27". */
+    private static final String COUNTER_KEY = "ALL";
 
-    /** Atomically takes the next number for the FY, e.g. SQ/2026-27/0007. */
-    private static String nextQuoteNo(Connection con, LocalDate date) throws SQLException {
-        String fy = financialYear(date);
-        try (PreparedStatement ps = con.prepareStatement(
-                "INSERT INTO quote_counter (fy, last_no) VALUES (?, LAST_INSERT_ID(1)) "
-                + "ON DUPLICATE KEY UPDATE last_no = LAST_INSERT_ID(last_no + 1)")) {
-            ps.setString(1, fy);
-            ps.executeUpdate();
+    /** Atomically takes the next running number, e.g. SQ0007. */
+    private static String nextQuoteNo(Connection con) throws SQLException {
+        try (Statement st = con.createStatement()) {
+            // First use on an older database: carry on from the highest per-FY number
+            st.executeUpdate("INSERT IGNORE INTO quote_counter (fy, last_no) "
+                    + "SELECT '" + COUNTER_KEY + "', COALESCE(MAX(last_no), 0) FROM quote_counter");
+            st.executeUpdate("UPDATE quote_counter SET last_no = LAST_INSERT_ID(last_no + 1) "
+                    + "WHERE fy = '" + COUNTER_KEY + "'");
         }
         int no;
         try (Statement st = con.createStatement(); ResultSet rs = st.executeQuery("SELECT LAST_INSERT_ID()")) {
@@ -210,7 +207,7 @@ public final class QuotationDao {
             no = rs.getInt(1);
         }
         String prefix = Settings.get("quote.prefix").isBlank() ? "SQ" : Settings.get("quote.prefix").trim();
-        return String.format("%s/%s/%04d", prefix, fy, no);
+        return String.format("%s%04d", prefix, no);
     }
 
     private static void insertHeader(Connection con, Quotation q) throws SQLException {
