@@ -36,9 +36,9 @@ public final class Money {
         return (neg ? "-" : "") + out + frac;
     }
 
-    /** "Rs. 1,23,456.00" — the PDF's built-in fonts have no ₹ glyph. */
+    /** "₹ 1,23,456.00" for the PDF, which embeds a font with the ₹ glyph. */
     public static String rs(BigDecimal v) {
-        return "Rs. " + fmt(v);
+        return "₹ " + fmt(v);
     }
 
     /** "₹ 1,23,456.00" for the Swing UI. */
