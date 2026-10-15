@@ -225,6 +225,7 @@ public final class Db {
         {"bank.account_name", ""},
         {"bank.account_no", ""},
         {"bank.ifsc", ""},
+        {"ui.theme", "light"},
         {"quote.prefix", "SQ"},
         {"quote.validity_days", "30"},
         {"quote.terms",

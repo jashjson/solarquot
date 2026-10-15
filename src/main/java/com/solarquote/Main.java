@@ -52,6 +52,8 @@ public class Main {
             return;
         }
 
+        if ("dark".equals(Settings.get("ui.theme"))) Ui.applyTheme(true);
+
         try {
             new MainFrame().setVisible(true);
         } catch (RuntimeException e) {
@@ -76,16 +78,6 @@ public class Main {
 
     private static void setupLookAndFeel() {
         System.setProperty("apple.awt.application.name", "SolarQuote");
-        FlatLaf.setGlobalExtraDefaults(Map.of(
-                "@accentColor", "#1A2E4A",
-                "Component.arc", "8",
-                "Button.arc", "8",
-                "TextComponent.arc", "8"));
-        FlatLightLaf.setup();
-        UIManager.put("Table.alternateRowColor", new java.awt.Color(0xF8, 0xF9, 0xFB));
-        UIManager.put("Table.selectionBackground", new java.awt.Color(0xFD, 0xEB, 0xC8));
-        UIManager.put("Table.selectionForeground", Ui.NAVY);
-        UIManager.put("TabbedPane.selectedBackground", java.awt.Color.WHITE);
-        UIManager.put("defaultFont", UIManager.getFont("defaultFont").deriveFont(Font.PLAIN, 13.5f));
+        Ui.applyTheme(false);
     }
 }

@@ -51,7 +51,7 @@ public class HistoryPanel extends JPanel implements MainFrame.Page {
     public HistoryPanel(MainFrame frame) {
         this.frame = frame;
         setLayout(new BorderLayout());
-        setBackground(Ui.BG);
+        Ui.bg(this, () -> Ui.BG);
 
         JButton newQuote = Ui.primary("+ New Quotation");
         newQuote.addActionListener(e -> frame.newQuotation());
@@ -76,7 +76,7 @@ public class HistoryPanel extends JPanel implements MainFrame.Page {
                 setText(v instanceof LocalDate d ? d.format(DATE) : "");
             }
         });
-        int[] widths = {170, 90, 200, 120, 80, 60, 120, 90};
+        int[] widths = {110, 110, 220, 130, 90, 60, 130, 100};
         for (int i = 0; i < widths.length; i++) table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -88,7 +88,7 @@ public class HistoryPanel extends JPanel implements MainFrame.Page {
             @Override public void mouseReleased(MouseEvent e) { popup(e); }
         });
         JScrollPane sp = new JScrollPane(table);
-        sp.setBorder(BorderFactory.createLineBorder(Ui.BORDER));
+        sp.setBorder(Ui.lineBorder());
         card.add(sp, BorderLayout.CENTER);
         card.add(footer, BorderLayout.SOUTH);
 
@@ -129,9 +129,9 @@ public class HistoryPanel extends JPanel implements MainFrame.Page {
         copy.addActionListener(e -> duplicateSelected());
         JButton pdf = Ui.button("PDF");
         pdf.addActionListener(e -> pdfSelected(false));
-        JButton print = Ui.button("⎙ Print");
+        JButton print = Ui.button("Print");
         print.addActionListener(e -> pdfSelected(true));
-        JButton status = Ui.button("Status ▾");
+        JButton status = Ui.button("Set status");
         status.addActionListener(e -> statusMenu().show(status, 0, status.getHeight()));
         JButton delete = Ui.danger("Delete");
         delete.addActionListener(e -> deleteSelected());

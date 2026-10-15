@@ -1,5 +1,6 @@
 package com.solarquote.ui;
 
+import com.solarquote.dao.SettingsDao;
 import com.solarquote.model.Quotation;
 import com.solarquote.service.Settings;
 
@@ -32,7 +33,7 @@ import java.awt.event.MouseEvent;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Top-level window: navy sidebar on the left, the active page on the right. */
+/** Top-level window: dark sidebar on the left, the active page on the right. */
 public class MainFrame extends JFrame {
 
     /** Pages reload their data every time they are shown. */
@@ -75,6 +76,7 @@ public class MainFrame extends JFrame {
         add(buildSidebar(), BorderLayout.WEST);
         add(content, BorderLayout.CENTER);
         installShortcuts();
+        Ui.onThemeChange(this::restyleSidebar);
 
         show(DASHBOARD);
         pack();
@@ -120,94 +122,144 @@ public class MainFrame extends JFrame {
     private JPanel buildSidebar() {
         JPanel side = new JPanel();
         side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
-        side.setBackground(Ui.NAVY);
-        side.setPreferredSize(new Dimension(210, 0));
-        side.setBorder(BorderFactory.createEmptyBorder(20, 0, 16, 0));
+        Ui.bg(side, () -> Ui.SIDEBAR);
+        side.setPreferredSize(new Dimension(224, 0));
+        side.setBorder(BorderFactory.createEmptyBorder(24, 0, 18, 0));
 
-        JLabel logo = new JLabel("☀ SolarQuote");
-        logo.setFont(logo.getFont().deriveFont(Font.BOLD, 20f));
-        logo.setForeground(Ui.AMBER);
-        logo.setBorder(BorderFactory.createEmptyBorder(0, 20, 2, 10));
+        JLabel logo = new JLabel("SolarQuote");
+        var iconUrl = MainFrame.class.getResource("/icon.png");
+        if (iconUrl != null) {
+            logo.setIcon(new javax.swing.ImageIcon(new javax.swing.ImageIcon(iconUrl).getImage()
+                    .getScaledInstance(30, 30, java.awt.Image.SCALE_SMOOTH)));
+            logo.setIconTextGap(10);
+        }
+        logo.setFont(logo.getFont().deriveFont(Font.BOLD, 19f));
+        logo.setForeground(Color.WHITE);
+        logo.setBorder(BorderFactory.createEmptyBorder(0, 20, 4, 10));
         logo.setAlignmentX(Component.LEFT_ALIGNMENT);
         side.add(logo);
 
-        companyLabel.setForeground(new Color(0xB8, 0xC4, 0xD4));
+        Ui.fg(companyLabel, () -> Ui.SIDEBAR_TEXT);
         companyLabel.setFont(companyLabel.getFont().deriveFont(12f));
-        companyLabel.setBorder(BorderFactory.createEmptyBorder(0, 20, 22, 10));
+        companyLabel.setBorder(BorderFactory.createEmptyBorder(0, 20, 26, 14));
         companyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         refreshCompany();
         side.add(companyLabel);
 
         String mod = KeyEvent.getModifiersExText(Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx());
-        String[][] items = {
-            {DASHBOARD, "▦", "1"},
-            {NEW_QUOTE, "＋", "N"},
-            {HISTORY, "☰", "H"},
-            {PRODUCTS, "▤", "4"},
-            {SETTINGS, "⚙", "5"},
+        Object[][] items = {
+            {DASHBOARD, Icons.Kind.DASHBOARD, "1"},
+            {NEW_QUOTE, Icons.Kind.NEW, "N"},
+            {HISTORY, Icons.Kind.HISTORY, "H"},
+            {PRODUCTS, Icons.Kind.PRODUCTS, "4"},
+            {SETTINGS, Icons.Kind.SETTINGS, "5"},
         };
-        for (String[] it : items) {
-            JButton b = navButton(it[0], it[1]);
+        for (Object[] it : items) {
+            JButton b = navButton((String) it[0], (Icons.Kind) it[1]);
             b.setToolTipText("Shortcut: " + mod + "+" + it[2]);
-            navButtons.put(it[0], b);
+            navButtons.put((String) it[0], b);
             side.add(b);
         }
         side.add(Box.createVerticalGlue());
 
-        JLabel ver = new JLabel("v1.0");
+        themeButton = navButton(null, Icons.Kind.MOON);
+        themeButton.setToolTipText("Switch between light and dark mode (" + mod + "+D)");
+        themeButton.addActionListener(e -> toggleTheme());
+        updateThemeButton();
+        side.add(themeButton);
+
+        JLabel ver = new JLabel("Version 1.0");
+        ver.setFont(ver.getFont().deriveFont(11f));
         ver.setForeground(new Color(0x7F, 0x8C, 0x9D));
-        ver.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 0));
+        ver.setBorder(BorderFactory.createEmptyBorder(10, 20, 0, 0));
         ver.setAlignmentX(Component.LEFT_ALIGNMENT);
         side.add(ver);
         return side;
     }
 
-    private JButton navButton(String name, String icon) {
+    private JButton themeButton;
+
+    private void toggleTheme() {
+        boolean dark = !Ui.isDark();
+        Ui.applyTheme(dark);
+        try {
+            SettingsDao.saveAll(Map.of("ui.theme", dark ? "dark" : "light"));
+            Settings.reload();
+        } catch (Exception e) {
+            Ui.error(this, "Could not remember your theme choice.", e);
+        }
+    }
+
+    private void restyleSidebar() {
+        navButtons.forEach((n, b) -> styleNav(b, n.equals(active), false));
+        updateThemeButton();
+        repaint();
+    }
+
+    private void updateThemeButton() {
+        boolean dark = Ui.isDark();
+        themeButton.setText(dark ? "Light mode" : "Dark mode");
+        themeButton.setIcon(Icons.of(dark ? Icons.Kind.SUN : Icons.Kind.MOON, 18));
+        styleNav(themeButton, false, false);
+    }
+
+    /** @param name page to show on click, or null for a plain button (the theme toggle) */
+    private JButton navButton(String name, Icons.Kind icon) {
         // Paint the background ourselves: FlatLaf skips it when the content area isn't filled
-        JButton b = new JButton(icon + "   " + name) {
+        JButton b = new JButton(name == null ? "" : name, Icons.of(icon, 18)) {
             @Override
             protected void paintComponent(Graphics g) {
                 g.setColor(getBackground());
                 g.fillRect(0, 0, getWidth(), getHeight());
+                if (Boolean.TRUE.equals(getClientProperty("sq.selected"))) {
+                    g.setColor(Ui.AMBER);
+                    g.fillRect(0, 6, 4, getHeight() - 12);
+                }
                 super.paintComponent(g);
             }
         };
+        b.setIconTextGap(14);
         b.setFont(b.getFont().deriveFont(14f));
         b.setHorizontalAlignment(SwingConstants.LEFT);
         b.setAlignmentX(Component.LEFT_ALIGNMENT);
-        b.setPreferredSize(new Dimension(210, 44));
+        b.setPreferredSize(new Dimension(224, 44));
         b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        b.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 10));
+        b.setBorder(BorderFactory.createEmptyBorder(0, 22, 0, 10));
         b.setFocusPainted(false);
         b.setBorderPainted(false);
         b.setContentAreaFilled(false);
         b.setOpaque(false);   // FlatLaf fills opaque buttons with the parent colour, hiding ours
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         b.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { styleNav(b, name.equals(active), true); }
-            @Override public void mouseExited(MouseEvent e) { styleNav(b, name.equals(active), false); }
+            @Override public void mouseEntered(MouseEvent e) { styleNav(b, name != null && name.equals(active), true); }
+            @Override public void mouseExited(MouseEvent e) { styleNav(b, name != null && name.equals(active), false); }
         });
-        b.addActionListener(e -> {
-            if (NEW_QUOTE.equals(name) && !NEW_QUOTE.equals(active)) {
-                // Keep an unsaved draft if there is one; otherwise start fresh
-                quotationPanel.startFreshIfClean();
-            }
-            show(name);
-        });
+        if (name != null) {
+            b.addActionListener(e -> {
+                if (NEW_QUOTE.equals(name) && !NEW_QUOTE.equals(active)) {
+                    // Keep an unsaved draft if there is one; otherwise start fresh
+                    quotationPanel.startFreshIfClean();
+                }
+                show(name);
+            });
+        }
         styleNav(b, false, false);
         return b;
     }
 
     private static void styleNav(JButton b, boolean selected, boolean hover) {
+        b.putClientProperty("sq.selected", selected);
+        b.putClientProperty(Icons.COLOR, selected ? Ui.AMBER : null);
         if (selected) {
-            b.setBackground(Ui.AMBER);
-            b.setForeground(Ui.NAVY);
+            b.setBackground(Ui.SIDEBAR_ACTIVE);
+            b.setForeground(Color.WHITE);
             b.setFont(b.getFont().deriveFont(Font.BOLD));
         } else {
-            b.setBackground(hover ? Ui.NAVY_HOVER : Ui.NAVY);
-            b.setForeground(Color.WHITE);
+            b.setBackground(hover ? Ui.SIDEBAR_HOVER : Ui.SIDEBAR);
+            b.setForeground(hover ? Color.WHITE : Ui.SIDEBAR_TEXT);
             b.setFont(b.getFont().deriveFont(Font.PLAIN));
         }
+        b.repaint();
     }
 
     // ------------------------------------------------------------------
@@ -221,6 +273,7 @@ public class MainFrame extends JFrame {
         bind(KeyStroke.getKeyStroke(KeyEvent.VK_H, mod), "history", () -> show(HISTORY));
         bind(KeyStroke.getKeyStroke(KeyEvent.VK_4, mod), "products", () -> show(PRODUCTS));
         bind(KeyStroke.getKeyStroke(KeyEvent.VK_5, mod), "settings", () -> show(SETTINGS));
+        bind(KeyStroke.getKeyStroke(KeyEvent.VK_D, mod), "theme", this::toggleTheme);
         bind(KeyStroke.getKeyStroke(KeyEvent.VK_S, mod), "save", () -> {
             if (NEW_QUOTE.equals(active)) quotationPanel.save();
         });

@@ -39,7 +39,7 @@ public class ProductsPanel extends JPanel implements MainFrame.Page {
 
     public ProductsPanel() {
         setLayout(new BorderLayout());
-        setBackground(Ui.BG);
+        Ui.bg(this, () -> Ui.BG);
 
         JButton add = Ui.primary("+ Add Product");
         add.addActionListener(e -> edit(null));
@@ -79,7 +79,7 @@ public class ProductsPanel extends JPanel implements MainFrame.Page {
         };
         center.setHorizontalAlignment(SwingConstants.CENTER);
         for (int c : new int[]{3, 5, 6, 7}) table.getColumnModel().getColumn(c).setCellRenderer(center);
-        int[] widths = {100, 320, 110, 60, 110, 60, 80, 60};
+        int[] widths = {110, 300, 110, 70, 120, 70, 90, 70};
         for (int i = 0; i < widths.length; i++) table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -91,7 +91,7 @@ public class ProductsPanel extends JPanel implements MainFrame.Page {
             }
         });
         JScrollPane sp = new JScrollPane(table);
-        sp.setBorder(BorderFactory.createLineBorder(Ui.BORDER));
+        sp.setBorder(Ui.lineBorder());
         card.add(sp, BorderLayout.CENTER);
         card.add(footer, BorderLayout.SOUTH);
 

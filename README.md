@@ -16,6 +16,8 @@ saving them as PDF and printing them.
 Quote numbers follow the Indian financial year: `SQ/2026-27/0001`.
 Line items are copied into each quotation, so later catalog price changes never alter old quotes.
 
+Light and dark themes: click **Dark mode** at the bottom of the sidebar (or `D`). The choice is remembered.
+
 Shortcuts (Cmd on macOS, Ctrl elsewhere): `N` new quote · `S` save · `P` print · `H` history · `1` dashboard.
 
 ## Install (Windows)

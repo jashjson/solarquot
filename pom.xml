@@ -22,6 +22,12 @@
             <artifactId>flatlaf</artifactId>
             <version>3.7.1</version>
         </dependency>
+        <!-- Inter typeface: same modern look on every Windows version, has the ₹ glyph -->
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf-fonts-inter</artifactId>
+            <version>4.1</version>
+        </dependency>
         <!-- Embedded database (no server to install) -->
         <dependency>
             <groupId>com.h2database</groupId>

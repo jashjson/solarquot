@@ -56,26 +56,28 @@ public class DashboardPanel extends JPanel implements MainFrame.Page {
     public DashboardPanel(MainFrame frame) {
         this.frame = frame;
         setLayout(new BorderLayout());
-        setBackground(Ui.BG);
+        Ui.bg(this, () -> Ui.BG);
 
         JButton newQuote = Ui.primary("+ New Quotation");
         newQuote.addActionListener(e -> frame.newQuotation());
 
         JPanel stats = new JPanel(new GridLayout(1, 4, 14, 0));
         stats.setOpaque(false);
-        stats.add(statCard("Quotes this month", monthCount, monthCountSub, Ui.AMBER));
-        stats.add(statCard("Quoted value this month", monthValue, monthValueSub, Ui.BLUE));
-        stats.add(statCard("Won (accepted)", acceptedValue, acceptedSub, Ui.GREEN));
-        stats.add(statCard("Awaiting decision", pending, pendingSub, Ui.MUTED));
+        stats.add(statCard("Quotes this month", monthCount, monthCountSub, () -> Ui.AMBER));
+        stats.add(statCard("Quoted value this month", monthValue, monthValueSub, () -> Ui.BLUE));
+        stats.add(statCard("Won (accepted)", acceptedValue, acceptedSub, () -> Ui.GREEN));
+        stats.add(statCard("Awaiting decision", pending, pendingSub, () -> Ui.MUTED));
 
         JPanel chartCard = Ui.card("Quoted value – last 6 months");
         chartCard.add(chart, BorderLayout.CENTER);
-        chartCard.setPreferredSize(new Dimension(420, 0));
+        chartCard.setPreferredSize(new Dimension(370, 0));
 
         JPanel recentCard = Ui.card("Recent quotations");
         Ui.styleTable(recentTable);
         recentTable.setAutoCreateRowSorter(false);   // already newest-first
         recentTable.setRowSorter(null);
+        int[] widths = {80, 104, 150, 112, 104};
+        for (int i = 0; i < widths.length; i++) recentTable.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         recentTable.getColumnModel().getColumn(3).setCellRenderer(Ui.moneyRenderer());
         recentTable.getColumnModel().getColumn(4).setCellRenderer(Ui.statusRenderer());
         recentTable.addMouseListener(new MouseAdapter() {
@@ -85,7 +87,7 @@ public class DashboardPanel extends JPanel implements MainFrame.Page {
             }
         });
         JScrollPane sp = new JScrollPane(recentTable);
-        sp.setBorder(BorderFactory.createLineBorder(Ui.BORDER));
+        sp.setBorder(Ui.lineBorder());
         recentCard.add(sp, BorderLayout.CENTER);
         JPanel links = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         links.setOpaque(false);
@@ -151,18 +153,11 @@ public class DashboardPanel extends JPanel implements MainFrame.Page {
     private static JLabel statValue() {
         JLabel l = new JLabel("–");
         l.setFont(l.getFont().deriveFont(Font.BOLD, 28f));
-        l.setForeground(Ui.NAVY);
-        return l;
+        return Ui.fg(l, () -> Ui.TEXT);
     }
 
-    private static JComponent statCard(String title, JLabel value, JLabel sub, Color accent) {
-        JPanel card = new JPanel(new BorderLayout(0, 4));
-        card.setBackground(Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 4, 0, 0, accent),
-                BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(Ui.BORDER),
-                        BorderFactory.createEmptyBorder(14, 16, 14, 16))));
+    private static JComponent statCard(String title, JLabel value, JLabel sub, java.util.function.Supplier<Color> accent) {
+        JPanel card = Ui.accentCard(accent);
         JLabel t = Ui.muted(title.toUpperCase());
         t.setFont(t.getFont().deriveFont(Font.BOLD, 11f));
         card.add(t, BorderLayout.NORTH);
@@ -219,12 +214,12 @@ public class DashboardPanel extends JPanel implements MainFrame.Page {
                 int cx = i * slot + slot / 2;
                 double ratio = max.signum() == 0 ? 0 : e.getValue().doubleValue() / max.doubleValue();
                 int barH = (int) Math.round((bottom - top) * ratio);
-                g.setColor(e.getKey().equals(current) ? Ui.AMBER : Ui.NAVY);
+                g.setColor(e.getKey().equals(current) ? Ui.AMBER : Ui.CHART_BAR);
                 g.fillRoundRect(cx - barW / 2, bottom - barH, barW, Math.max(barH, 2), 6, 6);
 
                 if (e.getValue().signum() > 0) {
                     String label = compact(e.getValue()).replace("₹ ", "");
-                    g.setColor(Ui.NAVY);
+                    g.setColor(Ui.TEXT);
                     g.drawString(label, cx - fm.stringWidth(label) / 2, bottom - barH - 5);
                 }
                 String month = e.getKey().getMonth().getDisplayName(TextStyle.SHORT, Locale.ENGLISH);

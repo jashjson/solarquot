@@ -38,7 +38,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
     public SettingsPanel(MainFrame frame) {
         this.frame = frame;
         setLayout(new BorderLayout());
-        setBackground(Ui.BG);
+        Ui.bg(this, () -> Ui.BG);
 
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Company", tab(companyForm(), "Printed at the top of every quotation."));
@@ -210,7 +210,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
             Settings.reload();
             frame.refreshCompany();
             message.setForeground(Ui.GREEN);
-            message.setText("✔ Settings saved.");
+            message.setText("✓ Settings saved.");
         } catch (Exception e) {
             Ui.error(this, "Could not save settings.", e);
         }

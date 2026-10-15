@@ -109,13 +109,13 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
 
     public QuotationPanel(MainFrame frame) {
         this.frame = frame;
-        setLayout(new BorderLayout(0, 14));
-        setBackground(Ui.BG);
-        setBorder(BorderFactory.createEmptyBorder(20, 24, 16, 24));
+        setLayout(new BorderLayout(0, 12));
+        Ui.bg(this, () -> Ui.BG);
+        setBorder(BorderFactory.createEmptyBorder(18, 28, 14, 28));
 
         add(buildTop(), BorderLayout.NORTH);
 
-        JPanel body = new JPanel(new BorderLayout(0, 14));
+        JPanel body = new JPanel(new BorderLayout(0, 10));
         body.setOpaque(false);
         JPanel infoRow = new JPanel(new GridLayout(1, 2, 14, 0));
         infoRow.setOpaque(false);
@@ -123,13 +123,13 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         infoRow.add(buildSystemCard());
         body.add(infoRow, BorderLayout.NORTH);
 
-        JPanel middle = new JPanel(new BorderLayout(14, 0));
+        JPanel middle = new JPanel(new BorderLayout(12, 0));
         middle.setOpaque(false);
         middle.add(buildItemsCard(), BorderLayout.CENTER);
         middle.add(buildTotalsCard(), BorderLayout.EAST);
         body.add(middle, BorderLayout.CENTER);
         body.add(buildTermsCard(), BorderLayout.SOUTH);
-        add(body, BorderLayout.CENTER);
+        add(Ui.verticalScroll(body), BorderLayout.CENTER);
 
         add(buildActions(), BorderLayout.SOUTH);
         installChangeTracking();
@@ -254,7 +254,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         c.insets = new Insets(4, col == 0 ? 0 : 14, 4, 8);
         c.anchor = GridBagConstraints.WEST;
         JLabel l = new JLabel(label);
-        l.setForeground(Ui.MUTED);
+        Ui.fg(l, () -> Ui.MUTED);
         grid.add(l, c);
         c.gridx = col + 1;
         c.weightx = 1;
@@ -270,10 +270,10 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         // Row 1: heading + line tools; row 2: pick a product and add it
         JPanel toolbar = new JPanel(new BorderLayout(8, 8));
         toolbar.setOpaque(false);
-        JPanel addRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        JPanel addRow = new JPanel(new BorderLayout(8, 0));
         addRow.setOpaque(false);
-        addRow.add(Ui.muted("Product"));
-        productCombo.setPreferredSize(new Dimension(420, productCombo.getPreferredSize().height));
+        addRow.add(Ui.muted("Product"), BorderLayout.WEST);
+        productCombo.setPreferredSize(new Dimension(120, productCombo.getPreferredSize().height));
         productCombo.setMaximumRowCount(16);
         productCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
@@ -281,25 +281,30 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
                                                           boolean sel, boolean focus) {
                 super.getListCellRendererComponent(list, value, index, sel, focus);
                 if (value instanceof Product p) {
-                    setText("<html><b>" + p.displayName() + "</b> &nbsp;<font color='#6B7785'>"
+                    // Closed box: name only (one line). Open list: name plus category and price.
+                    setText(index < 0 ? p.displayName()
+                            : "<html><b>" + p.displayName() + "</b> &nbsp;<font color='" + Ui.hex(Ui.MUTED) + "'>"
                             + p.category + " · ₹" + Money.fmt(p.price) + "/" + p.unit + "</font></html>");
                 }
                 return this;
             }
         });
-        addRow.add(productCombo);
+        addRow.add(productCombo, BorderLayout.CENTER);
         addQty.setPreferredSize(new Dimension(70, addQty.getPreferredSize().height));
-        addRow.add(Ui.muted("Qty"));
-        addRow.add(addQty);
         JButton add = Ui.primary("Add");
         add.addActionListener(e -> addSelectedProduct());
-        addRow.add(add);
+        JPanel qtyAdd = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        qtyAdd.setOpaque(false);
+        qtyAdd.add(Ui.muted("Qty"));
+        qtyAdd.add(addQty);
+        qtyAdd.add(add);
+        addRow.add(qtyAdd, BorderLayout.EAST);
         toolbar.add(Ui.heading("Items"), BorderLayout.WEST);
         toolbar.add(addRow, BorderLayout.SOUTH);
 
         JPanel tools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         tools.setOpaque(false);
-        JButton kit = Ui.button("⚡ Auto-fill kit");
+        JButton kit = Ui.button("Auto-fill kit");
         kit.setToolTipText("Fill panels, inverter, structure, cables and installation for the chosen capacity");
         kit.addActionListener(e -> autoFillKit());
         JButton custom = Ui.button("+ Custom line");
@@ -326,7 +331,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         itemsTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         itemsTable.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
         itemsTable.setSurrendersFocusOnKeystroke(true);
-        int[] widths = {36, 380, 70, 60, 110, 60, 120};
+        int[] widths = {40, 300, 60, 64, 130, 84, 130};
         for (int i = 0; i < widths.length; i++) {
             itemsTable.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
@@ -348,7 +353,8 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         itemsTable.getColumnModel().getColumn(6).setCellRenderer(Ui.moneyRenderer());
 
         JScrollPane scroll = new JScrollPane(itemsTable);
-        scroll.setBorder(BorderFactory.createLineBorder(Ui.BORDER));
+        scroll.setBorder(Ui.lineBorder());
+        itemsTable.setPreferredScrollableViewportSize(new Dimension(400, 200));
         card.add(scroll, BorderLayout.CENTER);
         card.add(Ui.muted("Tip: double-click a cell to edit description, quantity, unit, rate or GST."),
                 BorderLayout.SOUTH);
@@ -372,11 +378,11 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
 
         JLabel grandTitle = new JLabel("GRAND TOTAL");
         grandTitle.setFont(grandTitle.getFont().deriveFont(Font.BOLD, 14f));
-        grandTitle.setForeground(Ui.NAVY);
+        Ui.fg(grandTitle, () -> Ui.TEXT);
         grandL.setFont(grandL.getFont().deriveFont(Font.BOLD, 20f));
-        grandL.setForeground(Ui.NAVY);
+        Ui.fg(grandL, () -> Ui.TEXT);
         totalsRow(g, r++, grandTitle, grandL);
-        wordsL.setForeground(Ui.MUTED);
+        Ui.fg(wordsL, () -> Ui.MUTED);
         wordsL.setFont(UIManager.getFont("Label.font").deriveFont(11f));
         wordsL.setLineWrap(true);
         wordsL.setWrapStyleWord(true);
@@ -398,7 +404,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         sc.anchor = GridBagConstraints.WEST;
         showSubsidy.setOpaque(false);
         g.add(showSubsidy, sc);
-        subsidyL.setForeground(Ui.GREEN);
+        Ui.fg(subsidyL, () -> Ui.GREEN);
         totalsRow(g, r++, "Est. subsidy", subsidyL);
         totalsRow(g, r++, "Net after subsidy", netL);
 
@@ -415,7 +421,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         terms.setLineWrap(true);
         terms.setWrapStyleWord(true);
         JScrollPane sp = new JScrollPane(terms);
-        sp.setPreferredSize(new Dimension(0, 90));
+        sp.setPreferredSize(new Dimension(0, 56));
         card.add(sp, BorderLayout.CENTER);
         return card;
     }
@@ -435,7 +441,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         save.addActionListener(e -> save());
         JButton pdf = Ui.primary("Save & Open PDF");
         pdf.addActionListener(e -> openPdf());
-        JButton print = Ui.button("⎙ Print");
+        JButton print = Ui.button("Print");
         print.addActionListener(e -> print());
         buttons.add(clear);
         buttons.add(save);
@@ -548,7 +554,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
             dirty = false;
             updateTitle();
             message.setForeground(Ui.GREEN);
-            message.setText("✔ Saved " + current.quoteNo + " at "
+            message.setText("✓ Saved " + current.quoteNo + " at "
                     + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
             return true;
         } catch (Exception e) {
@@ -574,7 +580,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         File f = saveAndGeneratePdf();
         if (f == null) return;
         message.setForeground(Ui.GREEN);
-        message.setText("✔ PDF saved: " + f.getAbsolutePath());
+        message.setText("✓ PDF saved: " + f.getAbsolutePath());
         openFile(this, f);
     }
 
@@ -584,7 +590,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         try {
             if (QuotePrinter.print(f)) {
                 message.setForeground(Ui.GREEN);
-                message.setText("✔ Sent " + current.quoteNo + " to the printer.");
+                message.setText("✓ Sent " + current.quoteNo + " to the printer.");
             }
         } catch (Exception e) {
             Ui.error(this, "Printing failed.", e);
@@ -623,7 +629,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
             return "Email address doesn't look valid.";
         }
         if (itemsModel.items.isEmpty()) {
-            return "Add at least one item (tip: use ⚡ Auto-fill kit).";
+            return "Add at least one item (tip: use Auto-fill kit).";
         }
         for (QuoteItem it : itemsModel.items) {
             if (it.description.isBlank()) return "Every item needs a description.";
