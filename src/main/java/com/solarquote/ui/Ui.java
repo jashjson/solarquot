@@ -202,6 +202,10 @@ public final class Ui {
         JOptionPane.showMessageDialog(parent, what + "\n\n" + detail, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
+    public static void info(Component parent, String message) {
+        JOptionPane.showMessageDialog(parent, message, "SolarQuote", JOptionPane.INFORMATION_MESSAGE);
+    }
+
     public static void warn(Component parent, String message) {
         JOptionPane.showMessageDialog(parent, message, "Please check", JOptionPane.WARNING_MESSAGE);
     }

@@ -28,8 +28,7 @@ public final class SettingsDao {
     public static void saveAll(Map<String, String> values) throws SQLException {
         try (Connection con = Db.get();
              PreparedStatement ps = con.prepareStatement(
-                     "INSERT INTO settings (skey, svalue) VALUES (?, ?) "
-                     + "ON DUPLICATE KEY UPDATE svalue = VALUES(svalue)")) {
+                     "MERGE INTO settings (skey, svalue) KEY (skey) VALUES (?, ?)")) {
             for (Map.Entry<String, String> e : values.entrySet()) {
                 ps.setString(1, e.getKey());
                 ps.setString(2, e.getValue());

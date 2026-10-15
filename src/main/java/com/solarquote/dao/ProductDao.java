@@ -19,15 +19,16 @@ public final class ProductDao {
     /** Products matching the search text (name/brand/category); blank search returns all. */
     public static List<Product> list(String search, boolean activeOnly) throws SQLException {
         StringBuilder sql = new StringBuilder("SELECT * FROM products WHERE 1=1");
-        if (activeOnly) sql.append(" AND active = 1");
+        if (activeOnly) sql.append(" AND active = TRUE");
         boolean hasSearch = search != null && !search.isBlank();
-        if (hasSearch) sql.append(" AND (name LIKE ? OR brand LIKE ? OR category LIKE ?)");
-        sql.append(" ORDER BY FIELD(category,'PANEL','INVERTER','BATTERY','STRUCTURE','CABLE','BOS','SERVICE','OTHER'), name");
+        if (hasSearch) sql.append(" AND (LOWER(name) LIKE ? OR LOWER(brand) LIKE ? OR LOWER(category) LIKE ?)");
+        sql.append(" ORDER BY CASE category WHEN 'PANEL' THEN 1 WHEN 'INVERTER' THEN 2 WHEN 'BATTERY' THEN 3"
+                + " WHEN 'STRUCTURE' THEN 4 WHEN 'CABLE' THEN 5 WHEN 'BOS' THEN 6 WHEN 'SERVICE' THEN 7 ELSE 8 END, name");
 
         List<Product> list = new ArrayList<>();
         try (Connection con = Db.get(); PreparedStatement ps = con.prepareStatement(sql.toString())) {
             if (hasSearch) {
-                String like = "%" + search.trim() + "%";
+                String like = "%" + search.trim().toLowerCase() + "%";
                 ps.setString(1, like);
                 ps.setString(2, like);
                 ps.setString(3, like);

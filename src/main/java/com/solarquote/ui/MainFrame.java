@@ -22,6 +22,8 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -55,8 +57,12 @@ public class MainFrame extends JFrame {
     public MainFrame() {
         super("SolarQuote – Solar Quotation Generator");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(1150, 700));
-        setPreferredSize(new Dimension(1360, 820));
+        var icon = MainFrame.class.getResource("/icon.png");
+        if (icon != null) setIconImage(new javax.swing.ImageIcon(icon).getImage());
+        // Small laptop screens (e.g. 1366x768 at 125% scaling) must not get a window bigger than the screen
+        Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+        setMinimumSize(new Dimension(Math.min(1150, screen.width), Math.min(700, screen.height)));
+        setPreferredSize(new Dimension(Math.min(1360, screen.width), Math.min(820, screen.height)));
 
         quotationPanel = new QuotationPanel(this);
         addPage(DASHBOARD, new DashboardPanel(this));

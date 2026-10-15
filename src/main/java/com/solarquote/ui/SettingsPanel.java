@@ -2,7 +2,6 @@ package com.solarquote.ui;
 
 import com.solarquote.dao.SettingsDao;
 import com.solarquote.db.Db;
-import com.solarquote.db.DbConfig;
 import com.solarquote.service.Settings;
 
 import javax.swing.BorderFactory;
@@ -47,7 +46,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
         tabs.addTab("Quotation", tab(quotationForm(), null));
         tabs.addTab("Subsidy", tab(subsidyForm(),
                 "Rates change periodically – verify with pmsuryaghar.gov.in before relying on them."));
-        tabs.addTab("Database", tab(databaseForm(), null));
+        tabs.addTab("Data & Backup", tab(databaseForm(), "Your quotes are stored on this computer. A backup is taken automatically every time SolarQuote starts."));
 
         JPanel card = Ui.card(null);
         card.add(tabs, BorderLayout.CENTER);
@@ -76,9 +75,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
         terms.setText(Settings.get("quote.terms"));
         terms.setCaretPosition(0);
         subsidyEnabled.setSelected(Settings.getBool("subsidy.enabled"));
-        DbConfig c = Db.config();
-        dbInfo.setText("<html>Connected to <b>" + c.database + "</b> on <b>" + c.host + ":" + c.port
-                + "</b> as <b>" + c.user + "</b></html>");
+        dbInfo.setText("<html>Stored in <b>" + Db.dataDir() + "</b></html>");
         message.setText(" ");
     }
 
@@ -133,20 +130,31 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
     }
 
     private JComponent databaseForm() {
-        JButton change = Ui.button("Change connection…");
-        change.addActionListener(e -> {
-            DbConfig c = DbConfigDialog.show(SwingUtilities.getWindowAncestor(this), Db.config(), null);
-            if (c != null) {
-                Ui.warn(this, "Connection saved. Please restart SolarQuote to use the new database.");
+        JButton backup = Ui.button("Back up now");
+        backup.addActionListener(e -> {
+            try {
+                java.nio.file.Path f = Db.backup();
+                Ui.info(this, "Backup saved:\n" + f);
+            } catch (Exception ex) {
+                Ui.error(this, "Could not create the backup.", ex);
             }
         });
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JButton openData = Ui.button("Open backups folder");
+        openData.addActionListener(e -> {
+            try {
+                java.nio.file.Files.createDirectories(Db.backupDir());
+                java.awt.Desktop.getDesktop().open(Db.backupDir().toFile());
+            } catch (Exception ex) {
+                Ui.error(this, "Could not open the folder.", ex);
+            }
+        });
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row.setOpaque(false);
-        row.add(change);
+        row.add(backup);
+        row.add(openData);
         return new Ui.Form()
-                .add("Current", dbInfo)
+                .add("Data location", dbInfo)
                 .add("", row)
-                .add("Config file", Ui.muted(DbConfig.FILE.toString()))
                 .fillRemaining();
     }
 

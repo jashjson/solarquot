@@ -91,7 +91,7 @@ public final class QuotationDao {
         StringBuilder sql = new StringBuilder("SELECT * FROM quotations WHERE 1=1");
         boolean hasText = text != null && !text.isBlank();
         boolean hasStatus = status != null && !status.isBlank();
-        if (hasText) sql.append(" AND (quote_no LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)");
+        if (hasText) sql.append(" AND (LOWER(quote_no) LIKE ? OR LOWER(customer_name) LIKE ? OR LOWER(customer_phone) LIKE ?)");
         if (hasStatus) sql.append(" AND status = ?");
         sql.append(" ORDER BY quote_date DESC, id DESC LIMIT ").append(limit);
 
@@ -99,7 +99,7 @@ public final class QuotationDao {
         try (Connection con = Db.get(); PreparedStatement ps = con.prepareStatement(sql.toString())) {
             int i = 1;
             if (hasText) {
-                String like = "%" + text.trim() + "%";
+                String like = "%" + text.trim().toLowerCase() + "%";
                 ps.setString(i++, like);
                 ps.setString(i++, like);
                 ps.setString(i++, like);
@@ -150,10 +150,10 @@ public final class QuotationDao {
         try (Connection con = Db.get()) {
             try (PreparedStatement ps = con.prepareStatement(
                     "SELECT COUNT(*),"
-                    + " SUM(quote_date >= ?),"
+                    + " COALESCE(SUM(CASE WHEN quote_date >= ? THEN 1 ELSE 0 END), 0),"
                     + " COALESCE(SUM(CASE WHEN quote_date >= ? THEN grand_total END), 0),"
-                    + " SUM(status = 'ACCEPTED'),"
-                    + " SUM(status IN ('DRAFT','SENT')),"
+                    + " COALESCE(SUM(CASE WHEN status = 'ACCEPTED' THEN 1 ELSE 0 END), 0),"
+                    + " COALESCE(SUM(CASE WHEN status IN ('DRAFT','SENT') THEN 1 ELSE 0 END), 0),"
                     + " COALESCE(SUM(CASE WHEN status = 'ACCEPTED' THEN grand_total END), 0)"
                     + " FROM quotations")) {
                 ps.setDate(1, Date.valueOf(monthStart));
@@ -192,19 +192,24 @@ public final class QuotationDao {
     /** Single running counter row; older databases also hold per-FY rows like "2026-27". */
     private static final String COUNTER_KEY = "ALL";
 
-    /** Atomically takes the next running number, e.g. SQ0007. */
+    /** Takes the next running number, e.g. SQ0007. Runs inside the caller's transaction. */
     private static String nextQuoteNo(Connection con) throws SQLException {
-        try (Statement st = con.createStatement()) {
-            // First use on an older database: carry on from the highest per-FY number
-            st.executeUpdate("INSERT IGNORE INTO quote_counter (fy, last_no) "
-                    + "SELECT '" + COUNTER_KEY + "', COALESCE(MAX(last_no), 0) FROM quote_counter");
-            st.executeUpdate("UPDATE quote_counter SET last_no = LAST_INSERT_ID(last_no + 1) "
-                    + "WHERE fy = '" + COUNTER_KEY + "'");
-        }
         int no;
-        try (Statement st = con.createStatement(); ResultSet rs = st.executeQuery("SELECT LAST_INSERT_ID()")) {
-            rs.next();
-            no = rs.getInt(1);
+        try (Statement st = con.createStatement()) {
+            // First use (or an older per-FY database): carry on from the highest existing number
+            boolean exists;
+            try (ResultSet rs = st.executeQuery("SELECT 1 FROM quote_counter WHERE fy = '" + COUNTER_KEY + "'")) {
+                exists = rs.next();
+            }
+            if (!exists) {
+                st.executeUpdate("INSERT INTO quote_counter (fy, last_no) "
+                        + "SELECT '" + COUNTER_KEY + "', COALESCE(MAX(last_no), 0) FROM quote_counter");
+            }
+            st.executeUpdate("UPDATE quote_counter SET last_no = last_no + 1 WHERE fy = '" + COUNTER_KEY + "'");
+            try (ResultSet rs = st.executeQuery("SELECT last_no FROM quote_counter WHERE fy = '" + COUNTER_KEY + "'")) {
+                rs.next();
+                no = rs.getInt(1);
+            }
         }
         String prefix = Settings.get("quote.prefix").isBlank() ? "SQ" : Settings.get("quote.prefix").trim();
         return String.format("%s%04d", prefix, no);

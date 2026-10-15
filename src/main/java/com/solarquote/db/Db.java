@@ -1,39 +1,142 @@
 package com.solarquote.db;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
 
 /**
- * Hands out JDBC connections and creates the schema on first run.
- * A desktop app talking to a local MySQL does not need a pool: each DAO call
- * opens a short-lived connection in try-with-resources.
+ * Embedded H2 database stored in the user's profile (no server, nothing to install).
+ * One connection is kept open for the life of the app: it holds the file lock (so a second
+ * copy of the app is detected) and keeps the database open between calls. Each DAO call
+ * still gets its own short-lived connection, which is cheap for an embedded database.
  */
 public final class Db {
 
-    private static DbConfig config;
+    /** Thrown when another SolarQuote window already has the database open. */
+    public static class AlreadyRunningException extends SQLException {
+        public AlreadyRunningException(Throwable cause) {
+            super("SolarQuote is already running.", cause);
+        }
+    }
+
+    private static final int KEEP_BACKUPS = 10;
+    private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
+
+    private static Path dataDir = defaultDataDir();
+    private static Connection keepAlive;
 
     private Db() {}
 
-    public static void configure(DbConfig c) {
-        config = c;
+    /** %LOCALAPPDATA%\SolarQuoteData on Windows (separate from the install folder), ~/.solarquote elsewhere. */
+    public static Path defaultDataDir() {
+        String local = System.getenv("LOCALAPPDATA");
+        if (local != null && !local.isBlank()) return Path.of(local, "SolarQuoteData");
+        return Path.of(System.getProperty("user.home"), ".solarquote");
     }
 
-    public static DbConfig config() {
-        return config;
+    public static Path dataDir() {
+        return dataDir;
+    }
+
+    public static Path backupDir() {
+        return dataDir.resolve("backups");
+    }
+
+    private static String url() {
+        // DB_CLOSE_DELAY=-1: stay open between connections; we shut down explicitly on exit.
+        return "jdbc:h2:file:" + dataDir.resolve("solarquote").toAbsolutePath().toString().replace('\\', '/')
+                + ";DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE";
+    }
+
+    /**
+     * Opens (creating if needed) the database in {@code dir}, builds the schema and takes a
+     * start-up backup. Call once, before any DAO.
+     */
+    public static synchronized void open(Path dir) throws SQLException {
+        close();
+        dataDir = dir;
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            throw new SQLException("Cannot create data folder " + dir + ": " + e.getMessage(), e);
+        }
+        try {
+            keepAlive = DriverManager.getConnection(url(), "sa", "");
+        } catch (SQLException e) {
+            String m = String.valueOf(e.getMessage());
+            if (e.getErrorCode() == 90020 || m.contains("already in use") || m.contains("Locked by another process")) {
+                throw new AlreadyRunningException(e);
+            }
+            throw e;
+        }
+        initSchema();
+        try {
+            backup();
+        } catch (SQLException | RuntimeException e) {
+            // A failed backup must never stop the app from starting
+            System.err.println("Backup skipped: " + e.getMessage());
+        }
+    }
+
+    /** Cleanly shuts the database down so the files are consistent. Safe to call repeatedly. */
+    public static synchronized void close() {
+        if (keepAlive == null) return;
+        try (Statement st = keepAlive.createStatement()) {
+            st.execute("SHUTDOWN");
+        } catch (SQLException ignored) {
+            // already closed
+        }
+        try {
+            keepAlive.close();
+        } catch (SQLException ignored) {
+            // nothing left to do
+        }
+        keepAlive = null;
     }
 
     public static Connection get() throws SQLException {
-        return DriverManager.getConnection(config.url(), config.user, config.password);
+        return DriverManager.getConnection(url(), "sa", "");
     }
 
-    /** Throws if the given settings cannot connect. Used by the connection dialog. */
-    public static void test(DbConfig c) throws SQLException {
-        try (Connection con = DriverManager.getConnection(c.url(), c.user, c.password)) {
-            con.isValid(3);
+    /** Writes a zip snapshot into the backups folder and prunes old ones. Returns the file. */
+    public static synchronized Path backup() throws SQLException {
+        Path dir = backupDir();
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            throw new SQLException("Cannot create backup folder " + dir + ": " + e.getMessage(), e);
+        }
+        Path file = dir.resolve("solarquote-" + LocalDateTime.now().format(STAMP) + ".zip");
+        try (Connection con = get(); Statement st = con.createStatement()) {
+            st.execute("BACKUP TO '" + file.toAbsolutePath().toString().replace('\\', '/').replace("'", "''") + "'");
+        }
+        prune(dir);
+        return file;
+    }
+
+    private static void prune(Path dir) {
+        try (Stream<Path> files = Files.list(dir)) {
+            List<Path> zips = new ArrayList<>(files
+                    .filter(f -> f.getFileName().toString().matches("solarquote-.*\\.zip"))
+                    .sorted(Comparator.comparing((Path f) -> f.getFileName().toString()).reversed())
+                    .toList());
+            for (int i = KEEP_BACKUPS; i < zips.size(); i++) {
+                Files.deleteIfExists(zips.get(i));
+            }
+        } catch (IOException ignored) {
+            // pruning is best-effort
         }
     }
 
@@ -45,12 +148,12 @@ public final class Db {
         """
         CREATE TABLE IF NOT EXISTS settings (
             skey   VARCHAR(60) PRIMARY KEY,
-            svalue TEXT
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            svalue CLOB
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS products (
-            id         INT AUTO_INCREMENT PRIMARY KEY,
+            id         INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             name       VARCHAR(160) NOT NULL,
             category   VARCHAR(30)  NOT NULL,
             brand      VARCHAR(60),
@@ -58,18 +161,18 @@ public final class Db {
             price      DECIMAL(12,2) NOT NULL,
             gst_rate   DECIMAL(5,2)  NOT NULL,
             wattage    INT,
-            active     TINYINT(1) NOT NULL DEFAULT 1
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            active     BOOLEAN NOT NULL DEFAULT TRUE
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS quote_counter (
             fy      VARCHAR(7) PRIMARY KEY,
             last_no INT NOT NULL
-        ) ENGINE=InnoDB
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS quotations (
-            id              INT AUTO_INCREMENT PRIMARY KEY,
+            id              INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             quote_no        VARCHAR(40) NOT NULL UNIQUE,
             quote_date      DATE NOT NULL,
             valid_until     DATE NOT NULL,
@@ -86,17 +189,15 @@ public final class Db {
             round_off       DECIMAL(6,2)  NOT NULL DEFAULT 0,
             grand_total     DECIMAL(14,2) NOT NULL DEFAULT 0,
             subsidy         DECIMAL(12,2) NOT NULL DEFAULT 0,
-            show_subsidy    TINYINT(1) NOT NULL DEFAULT 1,
+            show_subsidy    BOOLEAN NOT NULL DEFAULT TRUE,
             status          VARCHAR(10) NOT NULL DEFAULT 'DRAFT',
-            terms           TEXT,
-            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_q_date (quote_date),
-            INDEX idx_q_status (status)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            terms           CLOB,
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS quotation_items (
-            id           INT AUTO_INCREMENT PRIMARY KEY,
+            id           INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
             quotation_id INT NOT NULL,
             line_no      INT NOT NULL,
             description  VARCHAR(300) NOT NULL,
@@ -105,8 +206,11 @@ public final class Db {
             unit_price   DECIMAL(12,2) NOT NULL,
             gst_rate     DECIMAL(5,2) NOT NULL,
             FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_q_date ON quotations(quote_date)",
+        "CREATE INDEX IF NOT EXISTS idx_q_status ON quotations(status)",
+        "CREATE INDEX IF NOT EXISTS idx_items_q ON quotation_items(quotation_id)"
     };
 
     private static final String[][] DEFAULT_SETTINGS = {
@@ -130,7 +234,7 @@ public final class Db {
           + "4. Net metering application and DISCOM charges are extra unless stated.\n"
           + "5. Warranty as per manufacturer: panels 25 years (performance), inverter 5-10 years.\n"
           + "6. Subsidy (if shown) is indicative and credited by the government directly to the customer."},
-        {"pdf.folder", System.getProperty("user.home") + "/Documents/SolarQuotes"},
+        {"pdf.folder", Path.of(System.getProperty("user.home"), "Documents", "SolarQuotes").toString()},
         {"subsidy.enabled", "true"},
         {"subsidy.rate_upto2", "30000"},
         {"subsidy.rate_2to3", "18000"},
@@ -152,17 +256,19 @@ public final class Db {
         {"Net Metering Liaison", "SERVICE", "", "Nos", 5000, 18, null},
     };
 
-    public static void initSchema() throws SQLException {
+    private static void initSchema() throws SQLException {
         try (Connection con = get(); Statement st = con.createStatement()) {
             for (String ddl : SCHEMA) {
                 st.execute(ddl);
             }
             // Insert defaults only for keys that don't exist yet
             try (PreparedStatement ps = con.prepareStatement(
-                    "INSERT IGNORE INTO settings (skey, svalue) VALUES (?, ?)")) {
+                    "INSERT INTO settings (skey, svalue) SELECT CAST(? AS VARCHAR(60)), CAST(? AS VARCHAR) FROM DUAL "
+                    + "WHERE NOT EXISTS (SELECT 1 FROM settings WHERE skey = ?)")) {
                 for (String[] kv : DEFAULT_SETTINGS) {
                     ps.setString(1, kv[0]);
                     ps.setString(2, kv[1]);
+                    ps.setString(3, kv[0]);
                     ps.addBatch();
                 }
                 ps.executeBatch();

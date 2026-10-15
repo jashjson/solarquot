@@ -1,0 +1,70 @@
+name: Windows installer
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Runs the tests on real Windows (paths, locking, fonts) and builds target/solarquote.jar
+      - name: Build and test
+        run: mvn -B verify
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = "1.0.0"
+          jpackage `
+            --type exe `
+            --name SolarQuote `
+            --app-version $version `
+            --vendor "SolarQuote" `
+            --description "Solar quotation generator" `
+            --input target `
+            --main-jar solarquote.jar `
+            --main-class com.solarquote.Main `
+            --icon packaging/solarquote.ico `
+            --add-modules java.base,java.desktop,java.sql,java.naming,java.logging,java.management,java.xml,java.prefs,java.datatransfer,java.security.jgss,jdk.unsupported,jdk.crypto.ec,jdk.zipfs `
+            --java-options "-Dfile.encoding=UTF-8" `
+            --java-options "-Xmx512m" `
+            --java-options "--enable-native-access=ALL-UNNAMED" `
+            --win-per-user-install `
+            --win-menu --win-menu-group "SolarQuote" `
+            --win-shortcut `
+            --win-dir-chooser `
+            --win-upgrade-uuid "6f1d2c1e-5a43-4b8e-9d57-3c0f6b7a2e91" `
+            --dest installer
+          Get-ChildItem installer
+
+      # Install it silently like a customer would, start it, and make sure it really comes up
+      - name: Smoke test the installed app
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem installer -Filter *.exe | Select-Object -First 1).FullName
+          $p = Start-Process $exe -ArgumentList '/quiet' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer exit code $($p.ExitCode)" }
+          $app = Join-Path $env:LOCALAPPDATA 'SolarQuote\SolarQuote.exe'
+          if (-not (Test-Path $app)) { throw "Not installed at $app" }
+          $proc = Start-Process $app -PassThru
+          Start-Sleep -Seconds 25
+          if ($proc.HasExited) { throw "App exited early with code $($proc.ExitCode)" }
+          $db = Join-Path $env:LOCALAPPDATA 'SolarQuoteData\solarquote.mv.db'
+          if (-not (Test-Path $db)) { throw "Database was not created at $db" }
+          Write-Host "OK: installed app is running and created its database"
+          Stop-Process $proc -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SolarQuote-Windows-Installer
+          path: installer/*.exe

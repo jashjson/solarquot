@@ -1,6 +1,6 @@
 # SolarQuote – Solar Quotation Generator
 
-Desktop app (Java Swing + MySQL) for creating solar installation quotations,
+Desktop app (Java Swing + embedded H2 database) for creating solar installation quotations,
 saving them as PDF and printing them.
 
 ## Features
@@ -18,30 +18,34 @@ Line items are copied into each quotation, so later catalog price changes never 
 
 Shortcuts (Cmd on macOS, Ctrl elsewhere): `N` new quote · `S` save · `P` print · `H` history · `1` dashboard.
 
-## Requirements
+## Install (Windows)
 
-- Java 17+
-- MySQL 8+ running locally (or reachable on the network)
+Run `SolarQuote-1.0.0.exe`. It installs for the current user (no admin rights, no Java, no database
+server needed) and adds a Start-menu and desktop shortcut. Open **Settings** and fill in your company
+details before creating quotes.
 
-## Build & run
+- Data lives in `%LOCALAPPDATA%\SolarQuoteData` (kept when the app is uninstalled or upgraded).
+- A backup zip is taken every time the app starts (last 10 kept, in `backups\`); **Settings → Data & Backup** has a "Back up now" button.
+- To restore, close the app and replace the files in the data folder with the contents of a backup zip.
+- Problems are logged to `solarquote.log` in the data folder.
 
-```bash
-mvn package
-java -jar target/solarquote.jar
-```
+## Build the Windows installer
 
-On first launch the app asks for MySQL host, port, user and password.
-The `solarquote` database and its tables are created automatically, with a starter product catalog.
-Connection details are saved in `~/.solarquote/db.properties`.
+The `.exe` must be built on Windows. Push a tag (`git tag v1.0.0 && git push --tags`) or run the
+**Windows installer** workflow from the GitHub *Actions* tab; it runs the tests, builds the installer,
+installs it silently and checks that it starts, then attaches `SolarQuote-1.0.0.exe` to the run.
 
-Then open **Settings** and fill in your company details before creating quotes.
+## Develop
+
+Needs Java 17+ and Maven. `mvn package` runs the tests and builds `target/solarquote.jar`;
+`java -jar target/solarquote.jar` starts the app (data in `~/.solarquote` on macOS/Linux).
 
 ## Project layout
 
 ```
 src/main/java/com/solarquote/
   Main.java                 startup: look & feel → DB connect → schema → main window
-  db/        Db, DbConfig   JDBC connection + schema creation / seed data
+  db/        Db             embedded H2 database, schema creation / seed data, backups
   model/                    Product, Quotation, QuoteItem
   dao/                      ProductDao, QuotationDao, SettingsDao (plain JDBC)
   service/                  Pricing (GST, discount, subsidy), KitBuilder, Money (₹ formatting, words), Settings
