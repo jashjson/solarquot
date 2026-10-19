@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write   # needed to create the GitHub Release
+
 jobs:
   build:
     runs-on: windows-latest
@@ -24,7 +27,8 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          $version = "1.0.0"
+          # Tag v1.2.3 -> 1.2.3; manual runs fall back to 1.0.0 (jpackage needs a numeric version)
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { '1.0.0' }
           jpackage `
             --type exe `
             --name SolarQuote `
@@ -68,3 +72,13 @@ jobs:
         with:
           name: SolarQuote-Windows-Installer
           path: installer/*.exe
+
+      # On a version tag, publish the installer as a public download on the Releases page
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $exe = (Get-ChildItem installer -Filter *.exe | Select-Object -First 1).FullName
+          gh release create $env:GITHUB_REF_NAME $exe --title "SolarQuote $env:GITHUB_REF_NAME" --generate-notes
