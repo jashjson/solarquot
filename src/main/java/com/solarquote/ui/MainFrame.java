@@ -3,6 +3,7 @@ package com.solarquote.ui;
 import com.solarquote.dao.SettingsDao;
 import com.solarquote.model.Quotation;
 import com.solarquote.service.Settings;
+import com.solarquote.service.UpdateCheck;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -12,9 +13,11 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -105,6 +108,31 @@ public class MainFrame extends JFrame {
         show(NEW_QUOTE);
     }
 
+    /** Checks GitHub off the UI thread and, if a newer release exists, offers to open its download page. */
+    public void checkForUpdates() {
+        Thread t = new Thread(() -> {
+            String newer = UpdateCheck.newerVersion();
+            if (newer != null) SwingUtilities.invokeLater(() -> showUpdateNotice(newer));
+        }, "update-check");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void showUpdateNotice(String newer) {
+        Object[] options = {"Download", "Later"};
+        int choice = JOptionPane.showOptionDialog(this,
+                "SolarQuote " + newer + " is available (you have " + UpdateCheck.currentVersion() + ").\n\n"
+                        + "Download the installer and run it. Your quotations and settings are kept.",
+                "Update available", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE,
+                null, options, options[0]);
+        if (choice != 0) return;
+        try {
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(UpdateCheck.RELEASES_PAGE));
+        } catch (Exception e) {
+            Ui.info(this, "Open this page in your browser to download the update:\n" + UpdateCheck.RELEASES_PAGE);
+        }
+    }
+
     /** Called after settings are saved so the sidebar shows the new company name. */
     public void refreshCompany() {
         companyLabel.setText("<html>" + escape(Settings.get("company.name")) + "</html>");
@@ -168,7 +196,8 @@ public class MainFrame extends JFrame {
         updateThemeButton();
         side.add(themeButton);
 
-        JLabel ver = new JLabel("Version 1.0");
+        String version = UpdateCheck.currentVersion();
+        JLabel ver = new JLabel(version == null ? "Development build" : "Version " + version);
         ver.setFont(ver.getFont().deriveFont(11f));
         ver.setForeground(new Color(0x7F, 0x8C, 0x9D));
         ver.setBorder(BorderFactory.createEmptyBorder(10, 20, 0, 0));

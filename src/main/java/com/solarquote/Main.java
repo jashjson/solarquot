@@ -55,7 +55,9 @@ public class Main {
         if ("dark".equals(Settings.get("ui.theme"))) Ui.applyTheme(true);
 
         try {
-            new MainFrame().setVisible(true);
+            MainFrame frame = new MainFrame();
+            frame.setVisible(true);
+            frame.checkForUpdates();
         } catch (RuntimeException e) {
             JOptionPane.showMessageDialog(null, "Startup failed: " + e.getMessage(),
                     "SolarQuote", JOptionPane.ERROR_MESSAGE);
