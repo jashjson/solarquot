@@ -16,6 +16,7 @@ import java.util.TreeMap;
  *   discount  = subtotal × discount%          (applied before GST, to every line)
  *   GST       = Σ (line amount − its discount share) × line GST%
  *   grand     = subtotal − discount + GST, rounded to the nearest rupee
+ *   net       = grand − central subsidy − state subsidy
  * </pre>
  */
 public final class Pricing {
@@ -43,8 +44,9 @@ public final class Pricing {
         q.gstTotal = gst;
         q.roundOff = rounded.subtract(exact);
         q.grandTotal = rounded;
-        // The subsidy can never exceed what the customer actually pays
+        // Together the subsidies can never exceed what the customer actually pays
         q.subsidy = subsidy(q.systemType, q.capacityKw).min(rounded);
+        q.stateSubsidy = stateSubsidy(q.systemType, q.capacityKw).min(rounded.subtract(q.subsidy));
     }
 
     /** Taxable value and GST amount per GST rate — used for the tax summary on the PDF. */
@@ -66,15 +68,24 @@ public final class Pricing {
      * Rates are editable in Settings because the scheme changes.
      */
     public static BigDecimal subsidy(String systemType, BigDecimal kw) {
-        if (!Settings.getBool("subsidy.enabled") || !"ON_GRID".equals(systemType) || kw == null) {
+        return tiered("subsidy.", systemType, kw);
+    }
+
+    /** State top-up on the central subsidy, same up-to-3 kW slab structure, settings under subsidy.state_*. */
+    public static BigDecimal stateSubsidy(String systemType, BigDecimal kw) {
+        return tiered("subsidy.state_", systemType, kw);
+    }
+
+    private static BigDecimal tiered(String prefix, String systemType, BigDecimal kw) {
+        if (!Settings.getBool(prefix + "enabled") || !"ON_GRID".equals(systemType) || kw == null) {
             return BigDecimal.ZERO;
         }
         BigDecimal two = new BigDecimal("2");
         BigDecimal first = kw.min(two);
         BigDecimal next = kw.subtract(two).max(BigDecimal.ZERO).min(BigDecimal.ONE);
-        BigDecimal amount = first.multiply(Settings.getDecimal("subsidy.rate_upto2"))
-                .add(next.multiply(Settings.getDecimal("subsidy.rate_2to3")));
-        BigDecimal cap = Settings.getDecimal("subsidy.cap");
+        BigDecimal amount = first.multiply(Settings.getDecimal(prefix + "rate_upto2"))
+                .add(next.multiply(Settings.getDecimal(prefix + "rate_2to3")));
+        BigDecimal cap = Settings.getDecimal(prefix + "cap");
         if (cap.signum() > 0) {
             amount = amount.min(cap);
         }

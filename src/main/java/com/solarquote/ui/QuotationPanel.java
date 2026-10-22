@@ -102,6 +102,7 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
     private final JLabel grandL = valueLabel();
     private final JTextArea wordsL = new JTextArea(2, 20);
     private final JLabel subsidyL = valueLabel();
+    private final JLabel stateSubsidyL = valueLabel();
     private final JLabel netL = valueLabel();
 
     private final JTextArea terms = new JTextArea(4, 40);
@@ -405,7 +406,9 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         showSubsidy.setOpaque(false);
         g.add(showSubsidy, sc);
         Ui.fg(subsidyL, () -> Ui.GREEN);
-        totalsRow(g, r++, "Est. subsidy", subsidyL);
+        Ui.fg(stateSubsidyL, () -> Ui.GREEN);
+        totalsRow(g, r++, "Central subsidy", subsidyL);
+        totalsRow(g, r++, "State subsidy", stateSubsidyL);
         totalsRow(g, r++, "Net after subsidy", netL);
 
         GridBagConstraints filler = new GridBagConstraints();
@@ -670,8 +673,9 @@ public class QuotationPanel extends JPanel implements MainFrame.Page {
         grandL.setText(Money.inr(tmp.grandTotal));
         wordsL.setText(Money.words(tmp.grandTotal));
         subsidyL.setText(tmp.subsidy.signum() > 0 ? Money.inr(tmp.subsidy) : "n/a");
-        netL.setText(Money.inr(tmp.grandTotal.subtract(tmp.subsidy)));
-        showSubsidy.setEnabled(tmp.subsidy.signum() > 0);
+        stateSubsidyL.setText(tmp.stateSubsidy.signum() > 0 ? Money.inr(tmp.stateSubsidy) : "n/a");
+        netL.setText(Money.inr(tmp.netPrice()));
+        showSubsidy.setEnabled(tmp.totalSubsidy().signum() > 0);
     }
 
     private void updateTitle() {

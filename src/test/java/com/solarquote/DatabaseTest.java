@@ -121,6 +121,42 @@ class DatabaseTest {
     }
 
     @Test
+    void centralAndStateSubsidyReduceNetPrice() throws Exception {
+        // kW → {central, state}: state is ₹5k/kW up to 2 kW, +₹12k for the 3rd kW, capped at ₹22k
+        String[][] cases = {{"1", "30000", "5000"}, {"2", "60000", "10000"}, {"3", "78000", "22000"},
+                            {"2.5", "69000", "16000"}, {"5", "78000", "22000"}};
+        for (String[] c : cases) {
+            BigDecimal kw = new BigDecimal(c[0]);
+            assertEquals(0, new BigDecimal(c[1]).compareTo(Pricing.subsidy("ON_GRID", kw)), c[0] + " kW central");
+            assertEquals(0, new BigDecimal(c[2]).compareTo(Pricing.stateSubsidy("ON_GRID", kw)), c[0] + " kW state");
+        }
+        assertEquals(0, Pricing.stateSubsidy("OFF_GRID", BigDecimal.ONE).signum());
+
+        Quotation q = sample("Net");
+        assertEquals(0, new BigDecimal("100000").compareTo(q.totalSubsidy()));
+        assertEquals(0, q.grandTotal.subtract(new BigDecimal("100000")).compareTo(q.netPrice()));
+        QuotationDao.save(q);
+        assertEquals(0, new BigDecimal("22000").compareTo(QuotationDao.find(q.id).stateSubsidy));
+
+        SettingsDao.saveAll(Map.of("subsidy.state_enabled", "false"));
+        Settings.reload();
+        Pricing.compute(q);
+        assertEquals(0, q.stateSubsidy.signum());
+    }
+
+    @Test
+    void stateSubsidyColumnAddedToOldDatabase() throws Exception {
+        try (var con = Db.get(); var st = con.createStatement()) {
+            st.execute("ALTER TABLE quotations DROP COLUMN state_subsidy");
+        }
+        Db.close();
+        Db.open(dir.resolve("data"));
+        Quotation q = sample("Old");
+        QuotationDao.save(q);
+        assertEquals(0, q.stateSubsidy.compareTo(QuotationDao.find(q.id).stateSubsidy));
+    }
+
+    @Test
     void settingsAndProductsPersist() throws Exception {
         SettingsDao.saveAll(Map.of("company.name", "Surya Energy", "pdf.folder", dir.toString()));
         Settings.reload();

@@ -30,13 +30,23 @@ public class Quotation {
     public BigDecimal gstTotal = BigDecimal.ZERO;
     public BigDecimal roundOff = BigDecimal.ZERO;
     public BigDecimal grandTotal = BigDecimal.ZERO;
-    public BigDecimal subsidy = BigDecimal.ZERO;
+    public BigDecimal subsidy = BigDecimal.ZERO;       // central (PM Surya Ghar)
+    public BigDecimal stateSubsidy = BigDecimal.ZERO;
 
     public boolean showSubsidy = true;
     public String status = "DRAFT";
     public String terms = "";
 
     public List<QuoteItem> items = new ArrayList<>();
+
+    public BigDecimal totalSubsidy() {
+        return subsidy.add(stateSubsidy);
+    }
+
+    /** What the customer effectively pays once both subsidies are credited. */
+    public BigDecimal netPrice() {
+        return grandTotal.subtract(totalSubsidy());
+    }
 
     public static String systemLabel(String type) {
         return switch (type) {

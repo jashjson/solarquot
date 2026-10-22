@@ -189,6 +189,7 @@ public final class Db {
             round_off       DECIMAL(6,2)  NOT NULL DEFAULT 0,
             grand_total     DECIMAL(14,2) NOT NULL DEFAULT 0,
             subsidy         DECIMAL(12,2) NOT NULL DEFAULT 0,
+            state_subsidy   DECIMAL(12,2) NOT NULL DEFAULT 0,
             show_subsidy    BOOLEAN NOT NULL DEFAULT TRUE,
             status          VARCHAR(10) NOT NULL DEFAULT 'DRAFT',
             terms           CLOB,
@@ -208,6 +209,8 @@ public final class Db {
             FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
         )
         """,
+        // Columns added after first release – existing databases pick them up here
+        "ALTER TABLE quotations ADD COLUMN IF NOT EXISTS state_subsidy DECIMAL(12,2) NOT NULL DEFAULT 0",
         "CREATE INDEX IF NOT EXISTS idx_q_date ON quotations(quote_date)",
         "CREATE INDEX IF NOT EXISTS idx_q_status ON quotations(status)",
         "CREATE INDEX IF NOT EXISTS idx_items_q ON quotation_items(quotation_id)"
@@ -240,6 +243,11 @@ public final class Db {
         {"subsidy.rate_upto2", "30000"},
         {"subsidy.rate_2to3", "18000"},
         {"subsidy.cap", "78000"},
+        // State top-up for systems up to 3 kW (₹5k/₹10k/₹22k at 1/2/3 kW, per crystalgrid.in/subsidy, Oct 2026)
+        {"subsidy.state_enabled", "true"},
+        {"subsidy.state_rate_upto2", "5000"},
+        {"subsidy.state_rate_2to3", "12000"},
+        {"subsidy.state_cap", "22000"},
     };
 
     // name, category, brand, unit, price, gst, wattage

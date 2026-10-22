@@ -102,7 +102,7 @@ public final class QuotePdf {
             doc.add(customerAndSystem(q));
             doc.add(items(q));
             doc.add(summary(q));
-            if (q.showSubsidy && q.subsidy.signum() > 0) {
+            if (q.showSubsidy && q.totalSubsidy().signum() > 0) {
                 doc.add(subsidyBox(q));
             }
             if (!q.terms.isBlank()) {
@@ -319,9 +319,14 @@ public final class QuotePdf {
         c.setPadding(8);
         c.setPaddingLeft(10);
         Paragraph p = new Paragraph();
-        p.add(new Chunk("PM Surya Ghar Subsidy (indicative): " + Money.rs(q.subsidy), SUBSIDY));
+        if (q.stateSubsidy.signum() > 0) {
+            p.add(new Chunk("Subsidy (indicative): " + Money.rs(q.totalSubsidy()), SUBSIDY));
+            p.add(new Chunk("  (PM Surya Ghar " + Money.rs(q.subsidy) + " + State " + Money.rs(q.stateSubsidy) + ")", BODY));
+        } else {
+            p.add(new Chunk("PM Surya Ghar Subsidy (indicative): " + Money.rs(q.subsidy), SUBSIDY));
+        }
         p.add(new Chunk("      Effective cost after subsidy: ", BODY));
-        p.add(new Chunk(Money.rs(q.grandTotal.subtract(q.subsidy)), BODY_B));
+        p.add(new Chunk(Money.rs(q.netPrice()), BODY_B));
         c.addElement(p);
         Paragraph note = new Paragraph("Subsidy is credited by the Government directly to the customer's bank account "
                 + "after installation and inspection; the full amount above is payable to us.", SMALL);

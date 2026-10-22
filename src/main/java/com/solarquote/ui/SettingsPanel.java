@@ -32,6 +32,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
     private final Map<String, JTextField> fields = new LinkedHashMap<>();
     private final JTextArea terms = new JTextArea(10, 50);
     private final JCheckBox subsidyEnabled = new JCheckBox("Calculate PM Surya Ghar subsidy for on-grid systems");
+    private final JCheckBox stateSubsidyEnabled = new JCheckBox("Add state subsidy on top (systems up to 3 kW)");
     private final JLabel dbInfo = new JLabel();
     private final JLabel message = new JLabel(" ");
 
@@ -45,7 +46,8 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
         tabs.addTab("Bank Details", tab(bankForm(), "Printed at the bottom of the quotation if an account number is set."));
         tabs.addTab("Quotation", tab(quotationForm(), null));
         tabs.addTab("Subsidy", tab(subsidyForm(),
-                "Rates change periodically – verify with pmsuryaghar.gov.in before relying on them."));
+                "Central and state subsidies add up; net price = grand total − both. Rates change periodically – "
+                + "verify with pmsuryaghar.gov.in and your state DISCOM before relying on them."));
         tabs.addTab("Data & Backup", tab(databaseForm(), "Your quotes are stored on this computer. A backup is taken automatically every time SolarQuote starts."));
 
         JPanel card = Ui.card(null);
@@ -75,6 +77,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
         terms.setText(Settings.get("quote.terms"));
         terms.setCaretPosition(0);
         subsidyEnabled.setSelected(Settings.getBool("subsidy.enabled"));
+        stateSubsidyEnabled.setSelected(Settings.getBool("subsidy.state_enabled"));
         dbInfo.setText("<html>Stored in <b>" + Db.dataDir() + "</b></html>");
         message.setText(" ");
     }
@@ -121,11 +124,16 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
 
     private JComponent subsidyForm() {
         subsidyEnabled.setOpaque(false);
+        stateSubsidyEnabled.setOpaque(false);
         return new Ui.Form()
-                .add("", subsidyEnabled)
+                .add("Central", subsidyEnabled)
                 .add("Rate per kW, first 2 kW (₹)", field("subsidy.rate_upto2"))
                 .add("Rate per kW, 2–3 kW (₹)", field("subsidy.rate_2to3"))
                 .add("Maximum subsidy (₹)", field("subsidy.cap"))
+                .add("State", stateSubsidyEnabled)
+                .add("Rate per kW, first 2 kW (₹)", field("subsidy.state_rate_upto2"))
+                .add("Rate per kW, 2–3 kW (₹)", field("subsidy.state_rate_2to3"))
+                .add("Maximum subsidy (₹)", field("subsidy.state_cap"))
                 .fillRemaining();
     }
 
@@ -205,6 +213,7 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
         fields.forEach((key, f) -> values.put(key, f.getText().trim()));
         values.put("quote.terms", terms.getText().trim());
         values.put("subsidy.enabled", String.valueOf(subsidyEnabled.isSelected()));
+        values.put("subsidy.state_enabled", String.valueOf(stateSubsidyEnabled.isSelected()));
         try {
             SettingsDao.saveAll(values);
             Settings.reload();
@@ -223,7 +232,8 @@ public class SettingsPanel extends JPanel implements MainFrame.Page {
         } catch (NumberFormatException e) {
             return "Validity (days) must be a whole number.";
         }
-        for (String k : new String[]{"subsidy.rate_upto2", "subsidy.rate_2to3", "subsidy.cap"}) {
+        for (String k : new String[]{"subsidy.rate_upto2", "subsidy.rate_2to3", "subsidy.cap",
+                "subsidy.state_rate_upto2", "subsidy.state_rate_2to3", "subsidy.state_cap"}) {
             if (Ui.parseDecimal(fields.get(k).getText(), null) == null) {
                 return "Subsidy amounts must be numbers.";
             }

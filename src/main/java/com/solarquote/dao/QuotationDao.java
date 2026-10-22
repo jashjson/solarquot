@@ -218,8 +218,8 @@ public final class QuotationDao {
     private static void insertHeader(Connection con, Quotation q) throws SQLException {
         String sql = "INSERT INTO quotations (quote_no, quote_date, valid_until, customer_name, customer_phone,"
                 + " customer_email, customer_address, system_type, capacity_kw, discount_pct, subtotal,"
-                + " discount_amount, gst_total, round_off, grand_total, subsidy, show_subsidy, status, terms)"
-                + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + " discount_amount, gst_total, round_off, grand_total, subsidy, state_subsidy, show_subsidy, status, terms)"
+                + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, q.quoteNo);
             bindHeader(ps, q, 2);
@@ -235,7 +235,7 @@ public final class QuotationDao {
         String sql = "UPDATE quotations SET quote_date=?, valid_until=?, customer_name=?, customer_phone=?,"
                 + " customer_email=?, customer_address=?, system_type=?, capacity_kw=?, discount_pct=?,"
                 + " subtotal=?, discount_amount=?, gst_total=?, round_off=?, grand_total=?, subsidy=?,"
-                + " show_subsidy=?, status=?, terms=? WHERE id=?";
+                + " state_subsidy=?, show_subsidy=?, status=?, terms=? WHERE id=?";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             int next = bindHeader(ps, q, 1);
             ps.setInt(next, q.id);
@@ -243,7 +243,7 @@ public final class QuotationDao {
         }
     }
 
-    /** Binds the 18 shared header columns starting at index {@code i}; returns the next free index. */
+    /** Binds the 19 shared header columns starting at index {@code i}; returns the next free index. */
     private static int bindHeader(PreparedStatement ps, Quotation q, int i) throws SQLException {
         ps.setDate(i++, Date.valueOf(q.quoteDate));
         ps.setDate(i++, Date.valueOf(q.validUntil));
@@ -260,6 +260,7 @@ public final class QuotationDao {
         ps.setBigDecimal(i++, q.roundOff);
         ps.setBigDecimal(i++, q.grandTotal);
         ps.setBigDecimal(i++, q.subsidy);
+        ps.setBigDecimal(i++, q.stateSubsidy);
         ps.setBoolean(i++, q.showSubsidy);
         ps.setString(i++, q.status);
         ps.setString(i++, q.terms);
@@ -304,6 +305,7 @@ public final class QuotationDao {
         q.roundOff = rs.getBigDecimal("round_off");
         q.grandTotal = rs.getBigDecimal("grand_total");
         q.subsidy = rs.getBigDecimal("subsidy");
+        q.stateSubsidy = rs.getBigDecimal("state_subsidy");
         q.showSubsidy = rs.getBoolean("show_subsidy");
         q.status = rs.getString("status");
         q.terms = nz(rs.getString("terms"));
